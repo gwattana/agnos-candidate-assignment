@@ -1,4 +1,4 @@
-import { store } from '@/lib/store'
+import { getSession, createSession } from '@/lib/store'
 import type { NextRequest } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -9,32 +9,42 @@ export async function GET(
 ) {
   const { sessionId } = await params
 
-  let session = store.getSession(sessionId)
+  let session = await getSession(sessionId)
   if (!session) {
-    session = store.createSession(sessionId)
+    session = await createSession(sessionId)
   }
 
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
-    start(controller) {
+    async start(controller) {
       const send = (data: unknown) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
       }
 
       // Send current state immediately
       send(session)
+      let lastActivity = session!.lastActivity
 
-      // Send heartbeat every 20s so the connection stays alive
+      // Poll Redis every 300ms for updates
+      const poll = setInterval(async () => {
+        try {
+          const updated = await getSession(sessionId)
+          if (updated && updated.lastActivity !== lastActivity) {
+            lastActivity = updated.lastActivity
+            send(updated)
+          }
+        } catch { /* ignore transient errors */ }
+      }, 300)
+
+      // Heartbeat every 20s to keep connection alive through proxies
       const heartbeat = setInterval(() => {
         controller.enqueue(encoder.encode(': ping\n\n'))
       }, 20_000)
 
-      const unsubscribe = store.subscribe(sessionId, send)
-
       request.signal.addEventListener('abort', () => {
+        clearInterval(poll)
         clearInterval(heartbeat)
-        unsubscribe()
         controller.close()
       })
     },
