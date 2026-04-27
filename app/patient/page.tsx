@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import type { PatientData } from '@/lib/types'
 import { EMPTY_PATIENT_DATA, REQUIRED_FIELDS } from '@/lib/types'
 
@@ -195,6 +196,12 @@ export default function PatientPage() {
             Your information has been received. A staff member will be with you shortly.
           </p>
           <p className="text-sm text-slate-400 mt-4">Session: {sessionId?.slice(0, 8)}…</p>
+          <Link
+            href="/"
+            className="inline-block mt-8 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+          >
+            ← Back to home
+          </Link>
         </div>
       </div>
     )
