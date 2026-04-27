@@ -70,6 +70,8 @@ export default function PatientPage() {
   const [copied, setCopied] = useState(false)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const debounceAbortRef = useRef<AbortController | null>(null)
+  const fieldRefs = useRef<Partial<Record<keyof PatientData, HTMLDivElement>>>({})
   const sessionIdRef = useRef<string | null>(null)
   const sessionCreationRef = useRef<Promise<string | undefined> | null>(null)
 
@@ -103,7 +105,7 @@ export default function PatientPage() {
 
   // Heartbeat while form is open — keeps lastActivity fresh so status stays active
   useEffect(() => {
-    if (!sessionId) return
+    if (!sessionId || submitted) return
     const id = setInterval(() => {
       fetch(`/api/patient/${sessionId}`, {
         method: 'POST',
@@ -112,7 +114,7 @@ export default function PatientPage() {
       })
     }, 15_000)
     return () => clearInterval(id)
-  }, [sessionId])
+  }, [sessionId, submitted])
 
   const sendUpdate = useCallback(
     (data: PatientData, activeField: string | null, isSubmit = false) => {
@@ -159,13 +161,7 @@ export default function PatientPage() {
   const handleBlur = useCallback((name: keyof PatientData) => {
     setTouched((prev) => ({ ...prev, [name]: true }))
     setErrors((prev) => ({ ...prev, [name]: validateField(name, formData[name], formData) }))
-    if (!sessionId) return
-    fetch(`/api/patient/${sessionId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: {}, activeField: null }),
-    })
-  }, [sessionId, formData])
+  }, [formData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -176,7 +172,16 @@ export default function PatientPage() {
 
     const validationErrors = validateForm(formData)
     setErrors(validationErrors)
-    if (Object.values(validationErrors).some(Boolean)) return
+    if (Object.values(validationErrors).some(Boolean)) {
+      const fieldOrder: (keyof PatientData)[] = [
+        'firstName', 'middleName', 'lastName', 'dateOfBirth', 'gender',
+        'phoneNumber', 'email', 'address', 'preferredLanguage', 'nationality',
+        'religion', 'emergencyContactName', 'emergencyContactRelationship',
+      ]
+      const first = fieldOrder.find((f) => validationErrors[f])
+      if (first) fieldRefs.current[first]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
 
     setIsSubmitting(true)
     await sendUpdate(formData, null, true)
@@ -295,6 +300,7 @@ export default function PatientPage() {
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.firstName = el }}
                   label="First Name"
                   required
                   error={touched.firstName ? errors.firstName : undefined}
@@ -310,6 +316,7 @@ export default function PatientPage() {
                   />
                 </FormField>
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.middleName = el }}
                   label="Middle Name"
                   error={touched.middleName ? errors.middleName : undefined}
                 >
@@ -325,6 +332,7 @@ export default function PatientPage() {
                 </FormField>
               </div>
               <FormField
+                fieldRef={(el) => { if (el) fieldRefs.current.lastName = el }}
                 label="Last Name"
                 required
                 error={touched.lastName ? errors.lastName : undefined}
@@ -341,6 +349,7 @@ export default function PatientPage() {
               </FormField>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.dateOfBirth = el }}
                   label="Date of Birth"
                   required
                   error={touched.dateOfBirth ? errors.dateOfBirth : undefined}
@@ -356,6 +365,7 @@ export default function PatientPage() {
                   />
                 </FormField>
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.gender = el }}
                   label="Gender"
                   required
                   error={touched.gender ? errors.gender : undefined}
@@ -382,6 +392,7 @@ export default function PatientPage() {
             </h2>
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
               <FormField
+                fieldRef={(el) => { if (el) fieldRefs.current.phoneNumber = el }}
                 label="Phone Number"
                 required
                 error={touched.phoneNumber ? errors.phoneNumber : undefined}
@@ -397,6 +408,7 @@ export default function PatientPage() {
                 />
               </FormField>
               <FormField
+                fieldRef={(el) => { if (el) fieldRefs.current.email = el }}
                 label="Email"
                 error={touched.email ? errors.email : undefined}
               >
@@ -411,6 +423,7 @@ export default function PatientPage() {
                 />
               </FormField>
               <FormField
+                fieldRef={(el) => { if (el) fieldRefs.current.address = el }}
                 label="Address"
                 required
                 error={touched.address ? errors.address : undefined}
@@ -436,6 +449,7 @@ export default function PatientPage() {
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.preferredLanguage = el }}
                   label="Preferred Language"
                   required
                   error={touched.preferredLanguage ? errors.preferredLanguage : undefined}
@@ -452,6 +466,7 @@ export default function PatientPage() {
                   </select>
                 </FormField>
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.nationality = el }}
                   label="Nationality"
                   required
                   error={touched.nationality ? errors.nationality : undefined}
@@ -468,7 +483,7 @@ export default function PatientPage() {
                   </select>
                 </FormField>
               </div>
-              <FormField label="Religion">
+              <FormField fieldRef={(el) => { if (el) fieldRefs.current.religion = el }} label="Religion">
                 <input
                   type="text"
                   value={formData.religion}
@@ -489,7 +504,7 @@ export default function PatientPage() {
             </h2>
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 divide-y sm:divide-y-0 sm:divide-x divide-slate-100">
-                <FormField label="Contact Name">
+                <FormField fieldRef={(el) => { if (el) fieldRefs.current.emergencyContactName = el }} label="Contact Name">
                   <input
                     type="text"
                     value={formData.emergencyContactName}
@@ -501,6 +516,7 @@ export default function PatientPage() {
                   />
                 </FormField>
                 <FormField
+                  fieldRef={(el) => { if (el) fieldRefs.current.emergencyContactRelationship = el }}
                   label="Relationship"
                   error={touched.emergencyContactRelationship ? errors.emergencyContactRelationship : undefined}
                 >
@@ -541,14 +557,16 @@ function FormField({
   required,
   error,
   children,
+  fieldRef,
 }: {
   label: string
   required?: boolean
   error?: string
   children: React.ReactNode
+  fieldRef?: React.RefCallback<HTMLDivElement>
 }) {
   return (
-    <div className="px-4 pt-3 pb-3">
+    <div className="px-4 pt-3 pb-3" ref={fieldRef}>
       <label className="block text-xs font-medium text-slate-500 mb-1.5">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
