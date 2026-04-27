@@ -60,7 +60,7 @@ app/
       route.ts                  GET SSE endpoint (text/event-stream)
 lib/
   types.ts                      Shared types, field labels, computeStatus()
-  store.ts                      In-memory session store with pub/sub
+  store.ts                      Upstash Redis session store (CRUD + list)
   utils.ts                      Shared utilities (timeAgo)
 ```
 
