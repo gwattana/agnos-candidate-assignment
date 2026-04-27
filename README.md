@@ -10,8 +10,13 @@ A real-time patient intake form with live staff monitoring, built with Next.js 1
 
 ```bash
 npm install
+cp .env.example .env.local   # add your Upstash Redis credentials
 npm run dev
 ```
+
+> **Easiest option:** Just visit the live Vercel URL above — no setup needed.
+
+For local development, create a free Redis database at [upstash.com](https://upstash.com) and fill in `.env.local` with your REST URL and token.
 
 Open [http://localhost:3000](http://localhost:3000).
 
@@ -126,8 +131,8 @@ Patient browser                 Next.js API                 Staff browser
 
 1. Patient types → session is **lazily created** on first keystroke via `POST /api/session`
 2. Patient form **debounces** field changes (300 ms) then POSTs `{ data, activeField }` to `/api/patient/[sessionId]`
-3. The API handler calls `store.updateSession()` which fans out to all registered **listeners**
-4. Each listener is a closure inside the SSE `ReadableStream` — it encodes the updated session as an `EventSource` message and enqueues it to the response stream
+3. The API handler calls `updateSession()` which writes the updated session to **Upstash Redis**
+4. The SSE route polls Redis every 300 ms — when `lastActivity` changes it pushes the new session to the staff browser
 5. The staff client receives the message via the browser `EventSource` API and calls `setSession(parsed)` — React re-renders immediately
 6. A **heartbeat** ping is sent every 20 s to keep the SSE connection alive through proxies
 7. On `activeField` focus/blur events, the patient form sends a lightweight update so the staff view shows the "typing…" indicator
@@ -140,13 +145,9 @@ SSE was chosen over WebSockets because:
 - No extra library needed; works natively in all modern browsers
 - Compatible with Vercel Fluid Compute (long-lived streaming responses, up to 300 s)
 
-### Production note
+### Multi-instance support
 
-The current store is in-memory and scoped to a single Node.js process. In a multi-instance deployment (e.g. Vercel with multiple function instances), POST and SSE GET may hit different instances, breaking the pub/sub.
-
-**Production fix:** Replace the in-memory store with Redis pub/sub (e.g. Upstash Redis):
-- `store.updateSession()` publishes to a Redis channel
-- The SSE route subscribes to the channel for the duration of the connection
+Sessions are stored in **Upstash Redis** so all Vercel function instances share the same state. The SSE route polls Redis every 300 ms instead of using in-memory pub/sub — this means real-time updates work correctly regardless of which instance handles each request.
 
 ---
 
@@ -156,10 +157,12 @@ The current store is in-memory and scoped to a single Node.js process. In a mult
 
 ```bash
 npm i -g vercel
+vercel env add UPSTASH_REDIS_REST_URL
+vercel env add UPSTASH_REDIS_REST_TOKEN
 vercel deploy --prod
 ```
 
-No environment variables required for the basic in-memory version.
+Requires a free [Upstash Redis](https://upstash.com) database. Copy the REST URL and token from the Upstash console and add them as environment variables.
 
 ### Local production build
 
@@ -178,5 +181,6 @@ npm start
 | Language | TypeScript 5 |
 | Styling | TailwindCSS 4 |
 | Real-time | Server-Sent Events (native Web API) |
+| Storage | Upstash Redis |
 | Fonts | Geist Sans (next/font/google) |
 | Hosting | Vercel |

@@ -1,14 +1,14 @@
-import { store } from '@/lib/store'
+import { createSession, getAllSessions } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const sessions = store.getAllSessions()
+  const sessions = await getAllSessions()
   return Response.json(sessions)
 }
 
 export async function POST() {
   const sessionId = crypto.randomUUID()
-  const session = store.createSession(sessionId)
+  const session = await createSession(sessionId)
   return Response.json(session, { status: 201 })
 }
