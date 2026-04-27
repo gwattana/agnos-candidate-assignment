@@ -70,18 +70,36 @@ export default function PatientPage() {
   const [copied, setCopied] = useState(false)
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
+  const sessionCreationRef = useRef<Promise<string | undefined> | null>(null)
 
   const createSession = useCallback(async () => {
-    if (sessionId) return
-    try {
-      const r = await fetch('/api/session', { method: 'POST' })
-      const s = await r.json()
-      setSessionId(s.sessionId)
-      return s.sessionId as string
-    } catch (err) {
-      console.error('Failed to create session:', err)
+    if (sessionIdRef.current) return sessionIdRef.current
+    if (sessionCreationRef.current) return sessionCreationRef.current
+
+    const existing = sessionStorage.getItem('checkin_session_id')
+    if (existing) {
+      sessionIdRef.current = existing
+      setSessionId(existing)
+      return existing
     }
-  }, [sessionId])
+
+    sessionCreationRef.current = fetch('/api/session', { method: 'POST' })
+      .then((r) => r.json())
+      .then((s) => {
+        sessionIdRef.current = s.sessionId
+        sessionStorage.setItem('checkin_session_id', s.sessionId)
+        setSessionId(s.sessionId)
+        return s.sessionId as string
+      })
+      .catch((err) => {
+        console.error('Failed to create session:', err)
+        sessionCreationRef.current = null
+        return undefined
+      })
+
+    return sessionCreationRef.current
+  }, [])
 
   // Heartbeat while form is open — keeps lastActivity fresh so status stays active
   useEffect(() => {
@@ -116,7 +134,7 @@ export default function PatientPage() {
       setErrors((prev) => ({ ...prev, [name]: validateField(name, value, updated) }))
     }
 
-    const sid = sessionId ?? await createSession()
+    const sid = sessionIdRef.current ?? await createSession()
     if (!sid) return
 
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -162,6 +180,7 @@ export default function PatientPage() {
 
     setIsSubmitting(true)
     await sendUpdate(formData, null, true)
+    sessionStorage.removeItem('checkin_session_id')
     setSubmitted(true)
     setIsSubmitting(false)
   }
@@ -230,7 +249,10 @@ export default function PatientPage() {
         </div>
       </header>
 
-      <form onSubmit={handleSubmit} noValidate>
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+      >
         <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
           {/* Staff link */}
           {sessionId && (
