@@ -4,8 +4,7 @@ A real-time patient intake form with live staff monitoring, built with Next.js 1
 
 ## Live Demo
 
-- **Live URL:** _coming soon_
-- **Repository:** _coming soon_
+- **Live URL:** [Open](https://agnos-candidate-assignment-iota.vercel.app/)
 
 ## Getting Started
 
